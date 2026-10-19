@@ -7,6 +7,8 @@
 #include <beep.h>
 #include "arkanoid.h"
 
+extern int lv;
+
 #include <cordic-16bit.h>
 #define M_PI 3.1415926536897932384626f
 
@@ -736,6 +738,15 @@ quit:
 }
 
 static MENU_SELECT_FUNC(arkanoid_start) {
+    if (!lv)
+    {
+        NotifyBox(3000, "Arkanoid：请先开启实时取景");
+        return;
+    }
+
+    if (arkanoid_running)
+        return;
+
 // SJE FIXME logging a known function address to work out
 // offset from crash logs, to get addr2line working on modules.
 // Would be nice to centralise this

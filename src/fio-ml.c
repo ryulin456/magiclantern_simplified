@@ -894,6 +894,74 @@ getfilesize_fail:
     return NULL;
 }
 
+uint8_t* read_entire_file_persistent(const char * filename, int* buf_size)
+{
+    const uint32_t io_chunk_max = 32 * 1024;
+    uint8_t *buf = NULL;
+    uint8_t *io_buf = NULL;
+    FILE *file = NULL;
+    uint32_t size = 0;
+    uint32_t pos = 0;
+
+    *buf_size = 0;
+    if (FIO_GetFileSize(filename, &size) != 0 || size == UINT32_MAX)
+        goto fail;
+
+    /* This allocation is intentionally persistent and non-DMA.  In
+     * particular, it must not remain allocated from shoot_malloc after the
+     * read, since Canon menu operations require that pool to be free. */
+    buf = malloc(size + 1);
+    if (!buf)
+    {
+        DebugMsg(DM_MAGIC, 3, "%s: persistent malloc failed", filename);
+        goto fail;
+    }
+
+    if (size)
+    {
+        uint32_t io_chunk_size = MIN(size, io_chunk_max);
+        io_buf = fio_malloc(io_chunk_size);
+        if (!io_buf)
+        {
+            DebugMsg(DM_MAGIC, 3, "%s: temporary fio_malloc failed", filename);
+            goto fail;
+        }
+
+        file = FIO_OpenFile(filename, O_RDONLY | O_SYNC);
+        if (!file)
+            goto fail;
+
+        while (pos < size)
+        {
+            uint32_t chunk = MIN(io_chunk_size, size - pos);
+            size_t rc = FIO_ReadFile(file, io_buf, chunk);
+            if (rc != chunk)
+                goto fail;
+            memcpy(buf + pos, io_buf, chunk);
+            pos += chunk;
+        }
+    }
+
+    if (file)
+        FIO_CloseFile(file);
+    if (io_buf)
+        fio_free(io_buf);
+
+    buf[size] = 0;
+    *buf_size = size;
+    return buf;
+
+fail:
+    if (file)
+        FIO_CloseFile(file);
+    if (io_buf)
+        fio_free(io_buf);
+    if (buf)
+        free(buf);
+    DEBUG("failed");
+    return NULL;
+}
+
 // sometimes gcc likes very much the default fprintf and uses that one
 // => renamed to my_fprintf to force it to use this one
 int

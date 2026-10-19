@@ -37,6 +37,12 @@ extern uint8_t *BFNT_BITMAP_DATA;
 extern bfnt_font* BFNT_FONT;
 #endif
 
+/* Optional UTF-8 fallback font loaded from ML/FONTS/zh_cn.bfn. */
+extern bfnt_font *BFNT_ALT_FONT;
+extern uint8_t *BFNT_ALT_CHAR_CODES;
+extern uint8_t *BFNT_ALT_BITMAP_OFFSET;
+extern uint8_t *BFNT_ALT_BITMAP_DATA;
+
 //-------------------------------------------------------------------
 // Format of header block for each character in the 'font_data' array
 // This is immediately followed by 'size' bytes of character data.

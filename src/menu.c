@@ -40,6 +40,124 @@
 #include "lvinfo.h"
 #include "powersave.h"
 
+#define ZH_CN_MAGIC 0x485a4c4d /* "MLZH" in little-endian order */
+
+typedef struct
+{
+    uint32_t magic;
+    uint32_t version;
+    uint32_t count;
+    uint32_t pool_offset;
+    uint32_t pool_size;
+} zh_cn_file_header_t;
+
+typedef struct
+{
+    uint32_t hash;
+    uint32_t offset;
+} zh_cn_file_entry_t;
+
+static uint8_t *zh_cn_file = 0;
+static int zh_cn_file_size = 0;
+static int zh_cn_load_attempted = 0;
+
+static int zh_cn_load(void)
+{
+    if (zh_cn_load_attempted)
+        return zh_cn_file != 0;
+    zh_cn_load_attempted = 1;
+
+    /* The dictionary remains resident for the lifetime of ML.  Do not use
+     * read_entire_file() here: its temporary DMA allocation may come from
+     * shoot_malloc, a pool Canon requires to be free while navigating menus. */
+    zh_cn_file = read_entire_file_persistent("ML/FONTS/zh_cn.lng", &zh_cn_file_size);
+    if (!zh_cn_file || zh_cn_file_size < (int) sizeof(zh_cn_file_header_t))
+        goto fail;
+
+    zh_cn_file_header_t *header = (zh_cn_file_header_t *) zh_cn_file;
+    uint32_t table_size = header->count * sizeof(zh_cn_file_entry_t);
+    if (header->magic != ZH_CN_MAGIC || header->version != 1 ||
+        header->count > 4096 ||
+        header->pool_offset != sizeof(zh_cn_file_header_t) + table_size ||
+        header->pool_offset > (uint32_t) zh_cn_file_size ||
+        header->pool_size > (uint32_t) zh_cn_file_size - header->pool_offset)
+        goto fail;
+
+    return 1;
+
+fail:
+    if (zh_cn_file)
+        free(zh_cn_file);
+    zh_cn_file = 0;
+    zh_cn_file_size = 0;
+    return 0;
+}
+
+static uint32_t zh_cn_hash(const char *text)
+{
+    uint32_t hash = 0x811c9dc5;
+    const uint8_t *p = (const uint8_t *) text;
+    while (*p)
+    {
+        hash ^= *p++;
+        hash *= 0x01000193;
+    }
+    return hash;
+}
+
+static const char *zh_cn_translate(const char *text)
+{
+    if (!text || !text[0])
+        return text;
+
+    if (!zh_cn_load())
+        return text;
+
+    zh_cn_file_header_t *header = (zh_cn_file_header_t *) zh_cn_file;
+    zh_cn_file_entry_t *entries =
+        (zh_cn_file_entry_t *) (zh_cn_file + sizeof(zh_cn_file_header_t));
+
+    uint32_t hash = zh_cn_hash(text);
+    int lo = 0;
+    int hi = header->count - 1;
+    while (lo <= hi)
+    {
+        int mid = lo + (hi - lo) / 2;
+        if (entries[mid].hash == hash)
+        {
+            uint32_t offset = entries[mid].offset;
+            if (offset < header->pool_size)
+            {
+                char *value = (char *) zh_cn_file + header->pool_offset + offset;
+                uint32_t remaining = header->pool_size - offset;
+                for (uint32_t i = 0; i < remaining; i++)
+                    if (!value[i])
+                        return value;
+            }
+            return text;
+        }
+        if (entries[mid].hash < hash)
+            lo = mid + 1;
+        else
+            hi = mid - 1;
+    }
+    return text;
+}
+
+const char *menu_translate(const char *text)
+{
+    return zh_cn_translate(text);
+}
+
+int menu_snprintf(char *str, int n, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    int written = vsnprintf(str, n, menu_translate(fmt), ap);
+    va_end(ap);
+    return written;
+}
+
 #define CONFIG_MENU_ICONS
 //~ #define CONFIG_MENU_DIM_HACKS
 #undef SUBMENU_DEBUG_JUNKIE
@@ -284,23 +402,15 @@ draw_version( void )
 #ifdef CONFIG_RELEASE_BUILD
 int beta_should_warn() { return 0; }
 #else
-CONFIG_INT("beta.warn", beta_warn, 0);
-static int get_beta_timestamp()
-{
-    struct tm now;
-    LoadCalendarFromRTC(&now);
-    return now.tm_mday;
-}
+static int beta_warned_this_boot = 0;
 static int beta_should_warn()
 {
-    int t = get_beta_timestamp();
-    return beta_warn != t;
+    return !beta_warned_this_boot;
 }
 
 static void beta_set_warned()
 {
-    unsigned t = get_beta_timestamp();
-    beta_warn = t;
+    beta_warned_this_boot = 1;
 }
 #endif
 
@@ -2312,6 +2422,12 @@ static char* pickbox_string(struct menu_entry * entry, int i)
     snprintf(msg, sizeof(msg), "%d", i);
     return msg;
 }
+
+static const char* pickbox_display_string(struct menu_entry * entry, int i)
+{
+    return zh_cn_translate(pickbox_string(entry, i));
+}
+
 static void pickbox_draw(struct menu_entry * entry, int x0, int y0)
 {
     int lo = entry->min;
@@ -2330,7 +2446,7 @@ static void pickbox_draw(struct menu_entry * entry, int x0, int y0)
     int w = 100;
     for (int i = lo; i <= hi; i++)
     {
-        w = MAX(w, font_large.width * strlen(pickbox_string(entry, i)));
+        w = MAX(w, bmp_string_width(fnt, pickbox_display_string(entry, i)));
     }
 
     // don't draw the pickbox out of the screen
@@ -2358,7 +2474,7 @@ static void pickbox_draw(struct menu_entry * entry, int x0, int y0)
         int y = y0 + (i-lo) * 32;
         if (i == sel)
             selection_bar_backend(MENU_BAR_COLOR, 45, x0-16, y, w, 32);
-        bmp_printf(fnt, x0, y, pickbox_string(entry, i));
+        bmp_printf(fnt, x0, y, "%s", pickbox_display_string(entry, i));
     }
     
     /*
@@ -2678,6 +2794,7 @@ static void display_customize_marker(struct menu_entry * entry, int x, int y)
 
 static void print_help_line(int color, int x, int y, char* msg)
 {
+    msg = (char *) zh_cn_translate(msg);
     int fnt = FONT(FONT_MED, color, MENU_BG_COLOR_HEADER_FOOTER);
     int len = bmp_string_width(fnt, msg);
     
@@ -2706,6 +2823,9 @@ entry_print(
 )
 {
     int w0 = w;
+    const char *display_name = zh_cn_translate(info->name);
+    const char *display_value = zh_cn_translate(info->value);
+    const char *display_rinfo = zh_cn_translate(info->rinfo);
     
     int fnt = MENU_FONT;
 
@@ -2745,8 +2865,9 @@ entry_print(
         {
             /* how much space we have to print our stuff? (we got some extra because of the smaller font) */
             int max_len = w;
-            int current_len = bmp_string_width(fnt, info->name);
-            int extra_len = bmp_strlen_clipped(fnt, entry->parent_menu->name, max_len - current_len - 50);
+            const char *display_parent = zh_cn_translate(entry->parent_menu->name);
+            int current_len = bmp_string_width(fnt, display_name);
+            int extra_len = bmp_strlen_clipped(fnt, display_parent, max_len - current_len - 50);
 
             /* try to modify the name to show where it's coming from */
             char new_name[100];
@@ -2756,24 +2877,27 @@ entry_print(
             {
                 /* we have some space to show the menu where the original entry is coming from */
                 /* (or at least some part of it) */
-                snprintf(new_name, MIN(extra_len + 1, sizeof(new_name)), "%s", entry->parent_menu->name);
+                snprintf(new_name, MIN(extra_len + 1, sizeof(new_name)), "%s", display_parent);
                 STR_APPEND(new_name, " - ");
             }
 
             /* print the original name */
-            STR_APPEND(new_name, "%s", info->name);
+            STR_APPEND(new_name, "%s", display_name);
 
             /* if it's too long, add some dots */
-            if ((int)strlen(new_name) > max_len)
+            int clipped = bmp_strlen_clipped(fnt, new_name, max_len);
+            if (new_name[clipped])
             {
-                new_name[max_len-1] = new_name[max_len-2] = new_name[max_len-3] = '.';
-                new_name[max_len] = 0;
+                int dot_width = bmp_string_width(fnt, "...");
+                clipped = bmp_strlen_clipped(fnt, new_name, max_len - dot_width);
+                new_name[clipped] = 0;
+                STR_APPEND(new_name, "...");
             }
 
             bmp_printf(
                 fnt,
                 x, y + y_font_offset,
-                new_name
+                "%s", new_name
             );
             
             /* don't indent */
@@ -2787,7 +2911,7 @@ entry_print(
     bmp_printf(
         fnt,
         x + x_font_offset, y + y_font_offset,
-        info->name
+        "%s", display_name
     );
 
 skip_name:
@@ -2806,19 +2930,19 @@ skip_name:
     int x_end = in_submenu ? x + g_submenu_width - SUBMENU_OFFSET : 717;
     
     int char_width = fontspec_font(fnt)->width;
-    w = MAX(w, bmp_string_width(fnt, info->name) + char_width);
+    w = MAX(w, bmp_string_width(fnt, display_name) + char_width);
 
     // both submenu marker and value? make sure they don't overlap
     if (entry->icon_type == IT_SUBMENU && info->value[0])
         w += 2 * char_width;
     
     // value string too big? move it to the left
-    int val_width = bmp_string_width(fnt, info->value);
+    int val_width = bmp_string_width(fnt, display_value);
     int end = w + val_width;
     int wmax = x_end - x;
 
     // right-justified info field?
-    int rlen = bmp_string_width(fnt, info->rinfo);
+    int rlen = bmp_string_width(fnt, display_rinfo);
     int rinfo_x = x_end - rlen - 35;
     if (rlen) wmax -= rlen + char_width + 35;
     
@@ -2834,7 +2958,7 @@ skip_name:
     int xval = x + w;
 
     // value overlaps name? show value only (overwrite the name)
-    if (xval < x + bmp_string_width(fnt, info->name))
+    if (xval < x + bmp_string_width(fnt, display_name))
     {
         xval = x;
     }
@@ -2852,7 +2976,7 @@ skip_name:
         fnt,
         xval, y + y_font_offset,
         "%s",
-        info->value
+        display_value
     );
     
     if(entry->selected &&
@@ -2872,7 +2996,7 @@ skip_name:
             MENU_FONT_GRAY,
             rinfo_x, y + y_font_offset,
             "%s",
-            info->rinfo
+            display_rinfo
         );
     }
 
@@ -2983,7 +3107,7 @@ skip_name:
                 {
                     int len = bmp_string_width(FONT_MED, help2_buf);
                     if (len > 700) break;
-                    STR_APPEND(help2_buf, "%s%s", pickbox_string(entry, i), i < entry->max ? " / " : ".");
+                    STR_APPEND(help2_buf, "%s%s", pickbox_display_string(entry, i), i < entry->max ? " / " : ".");
                 }
                 help_color = 50;
                 help2 = help2_buf;
@@ -4115,7 +4239,7 @@ void menus_display(
                     //~ bmp_printf(FONT_MED, 720 - strlen(menu->name)*font_med.width, 50, menu->name);
                 //~ else
                 if (!junkie_mode)
-                    bmp_printf(FONT(FONT_CANON, fg, NO_BG_ERASE), 5, y, "%s", menu->name);
+                    bmp_printf(FONT(FONT_CANON, fg, NO_BG_ERASE), 5, y, "%s", zh_cn_translate(menu->name));
                 
                 int x1 = x - 1;
                 int x2 = x1 + icon_spacing + 2;
@@ -4256,7 +4380,7 @@ submenu_display(struct menu *submenu)
         w = 720 - 2 * bx;
         bmp_fill(MENU_BG_COLOR_HEADER_FOOTER,  bx,  by, w, 40);
         bmp_fill(COLOR_BLACK,  bx,  by + 40, w, h-40);
-        bmp_printf(FONT(FONT_CANON, COLOR_WHITE, NO_BG_ERASE),  bx + 15,  by + 2, "%s", submenu->name);
+        bmp_printf(FONT(FONT_CANON, COLOR_WHITE, NO_BG_ERASE),  bx + 15,  by + 2, "%s", zh_cn_translate(submenu->name));
 
         for (int i = 0; i < 5; i++)
             bmp_draw_rect(45,  bx - i,  by - i, w + i * 2, h + i * 2);
