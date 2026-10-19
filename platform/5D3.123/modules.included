@@ -2,6 +2,7 @@
 adv_int
 arkanoid
 autoexpo
+af_live
 bench
 crop_rec
 deflick
@@ -18,3 +19,4 @@ mlv_snd
 pic_view
 selftest
 silent
+vid_af

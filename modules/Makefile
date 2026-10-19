@@ -23,6 +23,7 @@ TOP_DIR ?= ..
 SRC_DIR = $(TOP_DIR)/src
 BUILD_DIR = build
 MODULES_DIR = $(TOP_DIR)/modules
+BUILD_USER ?= ryulin456@gmail.com
 
 include $(TOP_DIR)/Makefile.globals
 include $(DEPS)
@@ -43,6 +44,8 @@ ML_MODULES = \
     silent \
     dot_tune \
     autoexpo \
+    vid_af \
+    af_live \
     arkanoid \
     deflick \
     img_name \
@@ -162,8 +165,10 @@ endif
 MODULE_CFLAGS += -I../../src/
 CFLAGS += -mlong-calls -DMODULE -DMODULE_NAME=$(MODULE_NAME) -DCONFIG_MAGICLANTERN $(MODULE_CFLAGS) -I.
 
-$(BUILD_DIR)/module_strings.h: $(BUILD_DIR)/README.rst | $(BUILD_DIR)
-	$(PYTHON) $(MODULES_DIR)/readme2modulestrings.py > $@.tmp
+$(BUILD_DIR)/module_strings.h: $(BUILD_DIR)/README.rst \
+                                      $(MODULES_DIR)/readme2modulestrings.py \
+                                      $(MODULES_DIR)/rbf_read.py | $(BUILD_DIR)
+	ML_BUILD_USER="$(BUILD_USER)" $(PYTHON) $(MODULES_DIR)/readme2modulestrings.py > $@.tmp
 	$(MV) $@.tmp $@
 
 # Check for non-existence of modules/module_name/README.rst,
@@ -185,4 +190,3 @@ $(BUILD_DIR)/$(MODULE_NAME).sym: $(BUILD_DIR)/$(MODULE_NAME).mo | $(BUILD_DIR)
 $(BUILD_DIR)/$(MODULE_NAME).dep: $(BUILD_DIR)/$(MODULE_NAME).mo | $(BUILD_DIR)
 	$(READELF) -sW $< | $(GREP) GLOBAL | $(GREP) 00000000 | $(GREP) UND | $(AWK) "{print \$$8;}" | sort > $@.tmp
 	$(MV) $@.tmp $@
-

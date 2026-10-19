@@ -1,6 +1,10 @@
 MODEL = 5D3
 FW_VERSION = 123
 
+# Keep the localized build tied to the exact upstream package identity.
+# The real compilation timestamp remains available separately as build_date.
+VERSION = 2025-06-20.5D3.123
+
 TOP_DIR = ../..
 
 AUTOEXEC_BASE = 0x800000

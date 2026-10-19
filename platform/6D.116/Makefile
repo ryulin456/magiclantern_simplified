@@ -1,6 +1,11 @@
 MODEL = 6D
 FW_VERSION = 116
 
+# Preserve the identity of the upstream package used as the localization base.
+# The localization revision belongs in the ZIP filename, not in ML's firmware
+# version string.  build_date remains the actual compilation timestamp.
+VERSION = 2025-06-20.6D.116
+
 TOP_DIR = ../..
 
 AUTOEXEC_BASE = 0x800000

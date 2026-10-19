@@ -59,7 +59,9 @@ CFLAGS += \
     -DVERSION=\"$(VERSION)\"
 
 BUILD_DATE = $(call eval_once,BUILD_DATE,$(shell LC_TIME=EN date +'%Y-%m-%d'))
-VERSION = $(BUILD_DATE).$(MODEL).$(FW_VERSION)
+VERSION ?= $(BUILD_DATE).$(MODEL).$(FW_VERSION)
+BUILD_ID ?= ed3e7c0
+BUILD_USER ?= ryulin456@gmail.com
 
 # Location of files to turn into zip:
 ZIP_DIR = build/zip
@@ -231,6 +233,12 @@ $(ZIP_DIR): | $(BUILD_DIR)
 
 zip_contents:: $(ZIP_DIR) $(BUILD_DIR)/autoexec.bin $(BUILD_DIR)/magiclantern.bin | $(BUILD_DIR)
 	$(CP) $(BUILD_DIR)/autoexec.bin $(ZIP_DIR)/
+	# Localization resources must be refreshed on every package build.  $(ZIP_DIR)
+	# may already exist after a core-only build, so its one-time recipe is not a
+	# reliable place for these mandatory release files.
+	$(CP) $(TOP_DIR)/data/fonts/zh_cn.bfn $(ZIP_DIR)/ML/fonts
+	$(CP) $(TOP_DIR)/data/fonts/zh_cn.lng $(ZIP_DIR)/ML/fonts
+	$(CP) $(TOP_DIR)/doc/OFL-NotoSansSC.txt $(ZIP_DIR)/ML/doc
 
 ifeq ($(CONFIG_MODULES),y)
     ifneq ($(CONFIG_TCC),y)
@@ -603,19 +611,19 @@ $(BUILD_DIR)/version.bin: FORCE | $(BUILD_DIR)
 	@echo 'Camera   : $(MODEL)' >> $@.tmp
 	@echo 'Firmware : $(FW_VERSION)' >> $@.tmp
 	@printf 'Commit: ' >> $@.tmp
-	$(BUILD_TOOLS_DIR)/git_summary.py >> $@.tmp
+	@printf '$(BUILD_ID)' >> $@.tmp
 	@echo '' >> $@.tmp
-	@echo 'Built on : '`date -u "+%Y-%m-%d %H:%M:%S"`' by '`whoami`@`hostname` >> $@.tmp
+	@echo 'Built on : '`date -u "+%Y-%m-%d %H:%M:%S"`' by $(BUILD_USER)' >> $@.tmp
 	@echo '' >> $@.tmp
 	$(MV) $@.tmp $@
 
 $(BUILD_DIR)/version.c: FORCE | $(BUILD_DIR)
 	@echo "const char build_version[] = \"$(VERSION)\";" > $(BUILD_DIR)/version.tmp
 	@printf 'const char build_id[] = "' >> $(BUILD_DIR)/version.tmp
-	$(BUILD_TOOLS_DIR)/git_summary.py >> $(BUILD_DIR)/version.tmp
+	@printf '$(BUILD_ID)' >> $(BUILD_DIR)/version.tmp
 	@echo '";' >> $(BUILD_DIR)/version.tmp
 	@echo 'const char build_date[] ="'`$(DATE) "+%Y-%m-%d %H:%M:%S %Z"`'";' >> $(BUILD_DIR)/version.tmp
-	@echo 'const char build_user[] = "'`whoami`@`hostname`'";'  >> $(BUILD_DIR)/version.tmp
+	@echo 'const char build_user[] = "$(BUILD_USER)";'  >> $(BUILD_DIR)/version.tmp
 	mv $(BUILD_DIR)/version.tmp $@
 
 $(BUILD_DIR)/xor_chk: $(BUILD_TOOLS_DIR)/xor_chk.c | $(BUILD_DIR)
