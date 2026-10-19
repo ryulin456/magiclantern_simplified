@@ -144,19 +144,31 @@ lines_per_page = 0
 for p in txt.strip("\n").split("\n")[2:]:
     if p.startswith(("# ", "## ")): # new section
         help_page_num += 1
-        add_string(last_str, desc)
+        if desc:
+            add_string(last_str, desc)
         desc = ""
         last_str = "Help page %d" % help_page_num
         print("Help page %d: %s" % (help_page_num, p.strip('# ')), file=sys.stderr)
         lines_per_page = 0
         p = p[2:].strip()
+
+    # Keep every generated page inside the on-camera 18-line viewport.
+    # Long upstream sections are continued on another help page instead of
+    # failing the build or silently dropping the remaining documentation.
+    if lines_per_page >= 18:
+        if desc:
+            add_string(last_str, desc)
+        help_page_num += 1
+        last_str = "Help page %d" % help_page_num
+        print("Help page %d: continued" % help_page_num, file=sys.stderr)
+        desc = ""
+        lines_per_page = 0
+
     desc += "%s\n" % p
     lines_per_page += 1
-    if lines_per_page > 18:
-        print("Too many lines per page\n", file=sys.stderr)
-        exit(1)
 
-add_string(last_str, desc)
+if desc:
+    add_string(last_str, desc)
 
 # allow running from some_module/
 # or some_category/some_module/
@@ -192,11 +204,13 @@ if len(last_change_info):
 
 build_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
-# echo called from python in Windows behaves differently, better to avoid it.
-if sys.platform == 'win32':
-    build_user = run('whoami').replace("\n", "") + "@" + run('hostname').replace("\n", "")
-else:
-    build_user = run("echo `whoami`@`hostname`")
+build_user = os.environ.get("ML_BUILD_USER", "").strip()
+if not build_user:
+    # echo called from python in Windows behaves differently, better to avoid it.
+    if sys.platform == 'win32':
+        build_user = run('whoami').replace("\n", "") + "@" + run('hostname').replace("\n", "")
+    else:
+        build_user = run("echo `whoami`@`hostname`").strip()
 
 add_string("Build date", build_date)
 add_string("Build user", build_user)

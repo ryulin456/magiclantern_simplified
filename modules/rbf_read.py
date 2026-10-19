@@ -62,5 +62,13 @@ def rbf_init_font(file):
 def extent_func(string):
     w = 0
     for c in string:
-        w += font.wTable[ord(c) - font.charFirst]
+        index = ord(c) - font.charFirst
+        # The legacy metadata wrapper measures with an ASCII RBF font, while
+        # localized module metadata may contain UTF-8 glyphs rendered later by
+        # the zh-CN font.  Use the font's maximum cell width for glyphs absent
+        # from this measurement font instead of indexing outside wTable.
+        if 0 <= index < len(font.wTable):
+            w += font.wTable[index]
+        else:
+            w += font.maxWidth
     return (w, 0)
