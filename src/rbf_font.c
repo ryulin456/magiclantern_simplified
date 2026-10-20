@@ -27,6 +27,11 @@ struct font font_dynamic[MAX_DYN_FONTS+1];
 static char *dyn_font_name[MAX_DYN_FONTS+1];
 uint32_t dyn_fonts = 0;
 
+bfnt_font *BFNT_ALT_FONT = 0;
+uint8_t *BFNT_ALT_CHAR_CODES = 0;
+uint8_t *BFNT_ALT_BITMAP_OFFSET = 0;
+uint8_t *BFNT_ALT_BITMAP_DATA = 0;
+
 #ifdef CONFIG_NO_BFNT
 /* kitor: Those replace entries in platform consts.h for DIGIC6+
  *        that does not use BMP fonts anymore.  */
@@ -229,10 +234,42 @@ static inline int rbf_font_height(font *rbf_font) {
 }
 //-------------------------------------------------------------------
 static inline int rbf_char_width(font *rbf_font, int ch) {
-    return rbf_font->wTable[ch];
+    if (!ch)
+        return 0;
+
+    if (rbf_font->cTable && ch >= 0 && ch < 256)
+        return (uint8_t) rbf_font->wTable[ch];
+
+    return bfnt_char_get_width_scaled(ch, rbf_font->hdr.height);
 }
 
 //-------------------------------------------------------------------
+/* BFNT uses UTF-8 bytes packed little endian as its glyph key.
+ * Preserve legacy RBF byte symbols if the next bytes are not valid UTF-8. */
+static int rbf_utf8_decode(const char **text)
+{
+    const uint8_t *start = (const uint8_t *)*text;
+    uint32_t first = *start, packed = first;
+    *text = (const char *)start + (first != 0);
+    if (first < 0x80) return first;
+    unsigned extra = first >= 0xc2 && first <= 0xdf ? 1 :
+                     first >= 0xe0 && first <= 0xef ? 2 :
+                     first >= 0xf0 && first <= 0xf4 ? 3 : 0;
+    if (!extra) return first;
+    uint32_t value = first & (extra == 1 ? 31 : extra == 2 ? 15 : 7);
+    for (unsigned i = 1; i <= extra; i++)
+    {
+        unsigned c = start[i];
+        if ((c & 0xc0) != 0x80) return first; /* includes NUL */
+        packed |= c << (i * 8);
+        value = value * 64 + (c & 63);
+    }
+    if (value < (extra == 1 ? 0x80u : extra == 2 ? 0x800u : 0x10000u) ||
+        value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff)) return first;
+    *text = (const char *)start + extra + 1;
+    return extra == 3 ? '?' : (int)packed;
+}
+
 int rbf_str_width(font *rbf_font, const char *str) {
     int l=0;
     int maxl = 0;
@@ -241,16 +278,19 @@ int rbf_str_width(font *rbf_font, const char *str) {
     // and return the length of the longest line
     while (*str)
     {
-        if (*str == '\n')
+        const char *next = str;
+        int ch = rbf_utf8_decode(&next);
+        str = next;
+
+        if (ch == '\n')
         {
             maxl = MAX(l, maxl);
             l = 0;
         }
-        else
+        else if (ch)
         {
-            l += rbf_char_width(rbf_font, *str);
+            l += rbf_char_width(rbf_font, ch);
         }
-        str++;
     }
     maxl = MAX(l, maxl);
 
@@ -260,8 +300,21 @@ int rbf_str_width(font *rbf_font, const char *str) {
 int rbf_str_clipped_width(font *rbf_font, const char *str, int maxlen) {
     int l = 0;
     // Calculate how long the string is in pixels (possibly clipped to 'maxlen')
-    while (*str && l+rbf_char_width(rbf_font, *str)<=maxlen)
-        l+=rbf_char_width(rbf_font, *str++);
+    while (*str)
+    {
+        const char *next = str;
+        int ch = rbf_utf8_decode(&next);
+        if (!ch)
+        {
+            str = next;
+            continue;
+        }
+        int width = rbf_char_width(rbf_font, ch);
+        if (l + width > maxlen)
+            break;
+        l += width;
+        str = next;
+    }
 
     return l;
 }
@@ -270,8 +323,21 @@ int rbf_strlen_clipped(font *rbf_font, const char *str, int maxlen) {
     int l = 0;
     // Calculate how long the string is in characters (possibly clipped to 'maxlen')
     char* str0 = (char*) str;
-    while (*str && l+rbf_char_width(rbf_font, *str)<=maxlen)
-        l+=rbf_char_width(rbf_font, *str++);
+    while (*str)
+    {
+        const char *next = str;
+        int ch = rbf_utf8_decode(&next);
+        if (!ch)
+        {
+            str = next;
+            continue;
+        }
+        int width = rbf_char_width(rbf_font, ch);
+        if (l + width > maxlen)
+            break;
+        l += width;
+        str = next;
+    }
 
     return str - str0;
 }
@@ -353,14 +419,23 @@ static void FAST font_draw_char_shadow(font *rbf_font, int x, int y, char *cdata
 //-------------------------------------------------------------------
 static int FAST rbf_draw_char(font *rbf_font, int x, int y, int ch, int fontspec) {
     // Get char data pointer
-    char* cdata = rbf_font_char(rbf_font, ch);
-    
-    if (!rbf_font->cTable)
-        bfnt_draw_char(ch, x, y, FG_COLOR(fontspec), BG_COLOR(fontspec));
+    char* cdata = (rbf_font->cTable && ch >= 0 && ch < 256)
+        ? rbf_font_char(rbf_font, ch)
+        : 0;
+    int width;
+
+    if (!rbf_font->cTable || ch < 0 || ch >= 256)
+        width = bfnt_draw_char_scaled(ch, x, y, FG_COLOR(fontspec), BG_COLOR(fontspec), rbf_font->hdr.height);
     else if (fontspec & SHADOW_MASK)
+    {
         font_draw_char_shadow(rbf_font, x, y, cdata, rbf_font->width, rbf_font->hdr.height, rbf_font->wTable[ch], fontspec);
+        width = (uint8_t) rbf_font->wTable[ch];
+    }
     else
+    {
         font_draw_char(rbf_font, x, y, cdata, rbf_font->width, rbf_font->hdr.height, rbf_font->wTable[ch], fontspec);
+        width = (uint8_t) rbf_font->wTable[ch];
+    }
 
 #if 0   /* fixme: breaks cursor in editor.lua */
     if (ch == '\t')
@@ -370,7 +445,7 @@ static int FAST rbf_draw_char(font *rbf_font, int x, int y, int ch, int fontspec
     }
 #endif
     ml_refresh_display_needed = 1;
-    return rbf_font->wTable[ch];
+    return width;
 }
 
 
@@ -380,15 +455,17 @@ static int rbf_draw_string_c(font *rbf_font, int x, int y, const char *str, int 
      int l=0, i=0;
 
      while (*str) {
-          if (*str == '\n')
+          int ch = rbf_utf8_decode(&str);
+          if (ch == '\n')
           {
               l = 0;
               y += rbf_font->hdr.height;
-              str++;
               i++;
               continue;
           }
-          l+=rbf_draw_char(rbf_font, x+l, y, *str++, (i==c)?fontspec1:fontspec2);
+          if (!ch)
+              continue;
+          l+=rbf_draw_char(rbf_font, x+l, y, ch, (i==c)?fontspec1:fontspec2);
           ++i;
      }
      return l;
@@ -402,7 +479,6 @@ static int rbf_draw_string_simple(font *rbf_font, int x, int y, const char *str,
 //-------------------------------------------------------------------
 static int rbf_draw_clipped_string(font *rbf_font, int x, int y, const char *str, int fontspec, int maxlen)
 {
-    int i = 0;
     int l = 0;
     
     int justified = (fontspec & FONT_ALIGN_MASK) == FONT_ALIGN_JUSTIFIED;
@@ -419,20 +495,35 @@ static int rbf_draw_clipped_string(font *rbf_font, int x, int y, const char *str
         /* first non-letter (indent) can't be stretched (to render bullet points correctly) */
         /* monospaced fonts are condensed uniformly */
         int bins = 0;
-        char* c = (char*) str;
+        int glyphs = 0;
+        const char *scan = str;
         int indent = 1;
-        while (*c && *(c+1))    /* note: last char should not be stretched */
+        while (*scan)
         {
-            if (*c != ' ' && *c != '*') indent = 0;
-            bins += is_mono ? 3 : indent ? 0 : space < 0 ? 1 : *c == ' ' ? 10 : 2;
-            c++;
+            int ch = rbf_utf8_decode(&scan);
+            if (ch)
+                glyphs++;
+        }
+
+        scan = str;
+        int seen = 0;
+        while (*scan)
+        {
+            int ch = rbf_utf8_decode(&scan);
+            if (!ch)
+                continue;
+            seen++;
+            if (seen == glyphs)
+                break; /* last glyph should not be stretched */
+            if (ch != ' ' && ch != '*') indent = 0;
+            bins += is_mono ? 3 : indent ? 0 : space < 0 ? 1 : ch == ' ' ? 10 : 2;
         }
         
         /* use Bresenham line-drawing algorithm to divide space with integer-only math */
         /* http://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm#Algorithm_with_Integer_Arithmetic */
         /* x: from 0 to bins */
         /* y: space accumulated (from 0 to space) */
-        int dx = bins;
+        int dx = MAX(bins, 1);
         int dy = ABS(space);
         
         /* if it requires too much stretching, just stretch as much as we can */
@@ -443,16 +534,29 @@ static int rbf_draw_clipped_string(font *rbf_font, int x, int y, const char *str
         // Draw chars from string up to max pixel length
         indent = 1;
         int condensed = 0;
-        while (*str && l+rbf_char_width(rbf_font, *str)<=maxlen)
+        seen = 0;
+        while (*str)
         {
-            l += rbf_draw_char(rbf_font, x+l, y, *str, fontspec | (condensed ? FONT_CONDENSED : 0) );
-            int l0 = l;
+            const char *next = str;
+            int ch = rbf_utf8_decode(&next);
+            if (!ch)
+            {
+                str = next;
+                continue;
+            }
+            int width = rbf_char_width(rbf_font, ch);
+            if (l + width > maxlen)
+                break;
 
-            if (*(str+1))
+            l += rbf_draw_char(rbf_font, x+l, y, ch, fontspec | (condensed ? FONT_CONDENSED : 0) );
+            int l0 = l;
+            seen++;
+
+            if (seen < glyphs && bins)
             {
                 /* Bresenham step */
-                if (*str != ' ' && *str != '*') indent = 0;
-                int repeat = is_mono ? 3 : indent ? 0 : space < 0 ? 1 : *c == ' ' ? 10 : 2;
+                if (ch != ' ' && ch != '*') indent = 0;
+                int repeat = is_mono ? 3 : indent ? 0 : space < 0 ? 1 : ch == ' ' ? 10 : 2;
                 condensed = 0;
                 for (int i = 0; i < repeat; i++)
                 {
@@ -474,16 +578,26 @@ static int rbf_draw_clipped_string(font *rbf_font, int x, int y, const char *str
                 bmp_fill(bg, x+l0, y, l-l0, rbf_font->hdr.height);
             }
             
-            i++; str++;
+            str = next;
         }
     }
     else
     {
         // Draw chars from string up to max pixel length
-        while (*str && l+rbf_char_width(rbf_font, *str)<=maxlen)
+        while (*str)
         {
-            l+=rbf_draw_char(rbf_font, x+l, y, *str++, fontspec);
-            i++;
+            const char *next = str;
+            int ch = rbf_utf8_decode(&next);
+            if (!ch)
+            {
+                str = next;
+                continue;
+            }
+            int width = rbf_char_width(rbf_font, ch);
+            if (l + width > maxlen)
+                break;
+            l += rbf_draw_char(rbf_font, x+l, y, ch, fontspec);
+            str = next;
         }
     }
     return l;
@@ -600,6 +714,67 @@ struct font font_med;
 struct font font_med_large;
 struct font font_large;
 struct font font_canon;
+
+
+int bfnt_load_alternate(const char *filename)
+{
+    if (BFNT_ALT_FONT) return 5; /* immutable after activation */
+    uint32_t size;
+
+    if (FIO_GetFileSize(filename, &size) != 0 || size < sizeof(bfnt_font) || size > 2 * 1024 * 1024)
+        return 1;
+
+    /* This font remains resident.  Keep it out of the temporary/DMA pools
+     * used by Canon shooting and menu tasks. */
+    BFNT_ALT_FONT = (bfnt_font *) read_entire_file_persistent(filename, (int *) &size);
+    if (!BFNT_ALT_FONT)
+        return 2;
+
+    if (size > 2 * 1024 * 1024 ||
+        BFNT_ALT_FONT->magic != 0x00544e46 ||
+        !BFNT_ALT_FONT->font_width || BFNT_ALT_FONT->font_width > 50 ||
+        (BFNT_ALT_FONT->charmap_offset & 3) ||
+        BFNT_ALT_FONT->charmap_offset < sizeof(bfnt_font) ||
+        (BFNT_ALT_FONT->charmap_size & 3) ||
+        BFNT_ALT_FONT->charmap_offset > size ||
+        BFNT_ALT_FONT->charmap_size > size - BFNT_ALT_FONT->charmap_offset ||
+        BFNT_ALT_FONT->charmap_size > size - BFNT_ALT_FONT->charmap_offset - BFNT_ALT_FONT->charmap_size ||
+        BFNT_ALT_FONT->bitmap_size > size - BFNT_ALT_FONT->charmap_offset - 2 * BFNT_ALT_FONT->charmap_size)
+    {
+        free(BFNT_ALT_FONT);
+        BFNT_ALT_FONT = 0;
+        return 3;
+    }
+
+    /* The renderer reads five little-endian uint16 metrics per glyph.
+     * Validate every record, not just the outer font header. */
+    uint8_t *codes = (uint8_t *)BFNT_ALT_FONT + BFNT_ALT_FONT->charmap_offset;
+    uint32_t *offsets = (uint32_t *)(codes + BFNT_ALT_FONT->charmap_size);
+    uint8_t *bitmaps = (uint8_t *)offsets + BFNT_ALT_FONT->charmap_size;
+    for (uint32_t i = 0; i < BFNT_ALT_FONT->charmap_size / 4; i++)
+    {
+        uint32_t offset = offsets[i];
+        if (offset > BFNT_ALT_FONT->bitmap_size || BFNT_ALT_FONT->bitmap_size - offset < 10)
+            goto invalid_glyph;
+        const uint8_t *g = bitmaps + offset;
+        unsigned cw = g[0] | g[1] << 8, ch = g[2] | g[3] << 8;
+        unsigned crw = g[4] | g[5] << 8, xo = g[6] | g[7] << 8, yo = g[8] | g[9] << 8;
+        if (cw > 100 || crw > 100 || xo > 100 || ch > 50 || yo > 50 ||
+            crw + xo > 100 || ch + yo > 50 ||
+            ((cw + 7) / 8) * ch > BFNT_ALT_FONT->bitmap_size - offset - 10)
+            goto invalid_glyph;
+    }
+
+    BFNT_ALT_CHAR_CODES = (uint8_t *) BFNT_ALT_FONT + BFNT_ALT_FONT->charmap_offset;
+    BFNT_ALT_BITMAP_OFFSET = BFNT_ALT_CHAR_CODES + BFNT_ALT_FONT->charmap_size;
+    BFNT_ALT_BITMAP_DATA = BFNT_ALT_BITMAP_OFFSET + BFNT_ALT_FONT->charmap_size;
+    return 0;
+
+invalid_glyph:
+    free(BFNT_ALT_FONT);
+    BFNT_ALT_FONT = 0;
+    return 4;
+}
 
 
 #ifdef CONFIG_NO_BFNT

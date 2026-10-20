@@ -490,8 +490,14 @@ void bmp_flip_ex(uint8_t* dst, uint8_t* src, uint8_t* mirror, int voffset);
 /* print a character with Canon's built-in font (useful for non-ASCII characters) */
 int bfnt_draw_char(int c, int px, int py, int fg, int bg);
 
+/* draw a BFNT character scaled to the requested text height */
+int bfnt_draw_char_scaled(int c, int px, int py, int fg, int bg, int target_height);
+
 /* return the width of a Canon built-in character */
 int bfnt_char_get_width(int c);
+
+/* return the scaled width of a BFNT character */
+int bfnt_char_get_width_scaled(int c, int target_height);
 
 // kitor TODO? if CONFIG_NO_BFNT and font was loaded, this should work anyway, right?
 #if !defined(CONFIG_DIGIC_678X)

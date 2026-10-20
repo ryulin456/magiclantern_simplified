@@ -37,6 +37,13 @@ extern uint8_t *BFNT_BITMAP_DATA;
 extern bfnt_font* BFNT_FONT;
 #endif
 
+/* Optional font selected by the external language index, loaded once per boot. */
+int bfnt_load_alternate(const char *filename);
+extern bfnt_font *BFNT_ALT_FONT;
+extern uint8_t *BFNT_ALT_CHAR_CODES;
+extern uint8_t *BFNT_ALT_BITMAP_OFFSET;
+extern uint8_t *BFNT_ALT_BITMAP_DATA;
+
 //-------------------------------------------------------------------
 // Format of header block for each character in the 'font_data' array
 // This is immediately followed by 'size' bytes of character data.
