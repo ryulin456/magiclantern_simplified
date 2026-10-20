@@ -43,15 +43,15 @@ draw_beta_warning()
 
     bmp_printf(FONT_CANON, 242, 53, "Magic Lantern");
 
-    bmp_printf(FONT_MED | FONT_ALIGN_CENTER, 360, 150, "This is a development snapshot for testing purposes.");
+    bmp_printf(FONT_MED | FONT_ALIGN_CENTER, 360, 150, "%s", menu_translate("This is a development snapshot for testing purposes."));
 
-    bmp_printf(FONT_MED | FONT_ALIGN_CENTER, 360, 200, "Please report all bugs at www.magiclantern.fm.");
+    bmp_printf(FONT_MED | FONT_ALIGN_CENTER, 360, 200, "%s", menu_translate("Please report all bugs at www.magiclantern.fm."));
 
-    bmp_printf(FONT_MED | FONT_ALIGN_CENTER, 360, 250, "Be careful using it for production work.      ");
+    bmp_printf(FONT_MED | FONT_ALIGN_CENTER, 360, 250, "%s", menu_translate("Be careful using it for production work.      "));
 
-    bmp_printf(FONT_MED | FONT_ALIGN_CENTER, 360, 300, "Enjoy!");
+    bmp_printf(FONT_MED | FONT_ALIGN_CENTER, 360, 300, "%s", menu_translate("Enjoy!"));
     
-    bmp_printf(FONT_MED | FONT_ALIGN_CENTER, 360, 350, "(Press any camera button to enter ML settings)");
+    bmp_printf(FONT_MED | FONT_ALIGN_CENTER, 360, 350, "%s", menu_translate("(Press any camera button to enter ML settings)"));
 
     big_bmp_printf(FONT_MED,  10,  410,
         "Magic Lantern version: %s\n"

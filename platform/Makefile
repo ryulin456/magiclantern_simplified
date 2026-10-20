@@ -231,6 +231,10 @@ $(ZIP_DIR): | $(BUILD_DIR)
 
 zip_contents:: $(ZIP_DIR) $(BUILD_DIR)/autoexec.bin $(BUILD_DIR)/magiclantern.bin | $(BUILD_DIR)
 	$(CP) $(BUILD_DIR)/autoexec.bin $(ZIP_DIR)/
+	mkdir -p $(ZIP_DIR)/ML/LANG
+	$(CP) $(TOP_DIR)/data/lang/* $(ZIP_DIR)/ML/LANG/
+	$(CP) $(TOP_DIR)/data/fonts/*.bfn $(ZIP_DIR)/ML/fonts/
+	$(CP) $(TOP_DIR)/doc/OFL-NotoSansSC.txt $(ZIP_DIR)/ML/doc/
 
 ifeq ($(CONFIG_MODULES),y)
     ifneq ($(CONFIG_TCC),y)
@@ -322,6 +326,8 @@ ML_SRC_OBJS_00 = \
     ico.o \
     edmac.o \
     menu.o \
+    language.o \
+    language_file.o \
     debug.o \
     rand.o \
     posix.o \

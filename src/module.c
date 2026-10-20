@@ -1571,10 +1571,10 @@ static MENU_UPDATE_FUNC(module_menu_update_entry)
     if (module_list[mod_number].strings)
     {
         const char* summary = module_get_string(mod_number, "Summary");
+        summary = menu_translate(summary);
         if (summary)
         {
-            int has_dot = summary[strlen(summary)-1] == '.';
-            MENU_SET_HELP("%s%s", summary, has_dot ? "" : ".");
+            MENU_SET_HELP("%s", summary);
         }
 
         if (module_list[mod_number].valid == module_list[mod_number].enabled)
@@ -1585,7 +1585,7 @@ static MENU_UPDATE_FUNC(module_menu_update_entry)
                 int fg = COLOR_GRAY(40);
                 int bg = COLOR_BLACK;
                 int fnt = SHADOW_FONT(FONT(FONT_MED_LARGE, fg, bg));
-                bmp_printf(fnt | FONT_ALIGN_RIGHT | FONT_TEXT_WIDTH(340), 680, info->y+2, "%s", name);
+                bmp_printf(fnt | FONT_ALIGN_RIGHT | FONT_TEXT_WIDTH(340), 680, info->y+2, "%s", menu_translate(name));
             }
         }
     }
@@ -1740,6 +1740,67 @@ static int module_is_special_string(const char* name)
     return 0;
 }
 
+/* Draw complete UTF-8 glyphs only; bmp_strlen_clipped returns a byte count. */
+static int module_draw_wrapped_text(
+    int fontspec,
+    int x,
+    int y,
+    int max_width,
+    int max_y,
+    const char *text
+)
+{
+    char line[256];
+    int line_height = fontspec_height(fontspec);
+
+    while (text && *text && y + line_height <= max_y)
+    {
+        while (*text == ' ' || *text == '\t')
+            text++;
+        if (*text == '\n')
+        {
+            text++;
+            y += line_height;
+            continue;
+        }
+        if (!*text)
+            break;
+
+        int bytes = bmp_strlen_clipped(fontspec, text, max_width);
+        const char *newline = strchr(text, '\n');
+        if (newline && newline - text < bytes)
+            bytes = newline - text;
+
+        if (bytes <= 0)
+            break;
+
+        if (text[bytes] && text[bytes] != '\n')
+        {
+            int word_break = bytes;
+            while (word_break > bytes / 2 && text[word_break] != ' ')
+                word_break--;
+            if (text[word_break] == ' ')
+                bytes = word_break;
+        }
+
+        bytes = MIN(bytes, (int) sizeof(line) - 1);
+        while (bytes > 0 && ((uint8_t)text[bytes] & 0xc0) == 0x80) bytes--;
+        if (!bytes) break;
+        memcpy(line, text, bytes);
+        line[bytes] = 0;
+
+        bmp_printf(fontspec, x, y, "%s", line);
+        y += line_height;
+        text += bytes;
+        while (*text == ' ' || *text == '\t')
+            text++;
+        if (*text == '\n')
+            text++;
+    }
+
+    return y;
+}
+
 static int module_show_about_page(int mod_number)
 {
     module_strpair_t *strings = module_list[mod_number].strings;
@@ -1753,8 +1814,9 @@ static int module_show_about_page(int mod_number)
         {
             if (!module_is_special_string(strings->name))
             {
-                max_width = MAX(max_width, strlen(strings->name) + strlen(strings->value) + 3);
-                max_width_value = MAX(max_width_value, strlen(strings->value) + 2);
+                const char *label = menu_translate(strings->name);
+                max_width = MAX(max_width, bmp_string_width(FONT_MED, label) + bmp_string_width(FONT_MED, strings->value) + 30);
+                max_width_value = MAX(max_width_value, bmp_string_width(FONT_MED, strings->value) + 20);
                 num_extra_strings++;
             }
         }
@@ -1764,6 +1826,7 @@ static int module_show_about_page(int mod_number)
         const char* module_build_user = module_get_string(mod_number, "Build user");
         const char* module_build_date = module_get_string(mod_number, "Build date");
         const char* module_last_update = module_get_string(mod_number, "Last update");
+        desc = menu_translate(desc);
 
         if (name && desc)
         {
@@ -1771,40 +1834,47 @@ static int module_show_about_page(int mod_number)
 
             int fnt_special = FONT(FONT_MED, COLOR_CYAN, COLOR_BLACK);
 
-            bmp_printf(FONT_LARGE, 10, 10, "%s", name);
-            big_bmp_printf(FONT_MED | FONT_ALIGN_JUSTIFIED | FONT_TEXT_WIDTH(690), 10, 60, "%s", desc);
+            bmp_printf(FONT_LARGE, 10, 10, "%s", menu_translate(name));
 
-            int xm = 710 - max_width_value * font_med.width;
-            int xl = 710 - max_width * font_med.width;
+            int xm = 710 - max_width_value;
+            int xl = 710 - max_width;
             xm = xm - xl + 10;
             xl = 10;
 
-            int lines_for_update_msg;
-            if (module_last_update == NULL)
-                lines_for_update_msg = 2;
-            else
-                lines_for_update_msg = strchr(module_last_update, '\n') ? 3 : 2;
+            int footer_lines = num_extra_strings;
+            if (module_build_date && module_build_user)
+                footer_lines += 2;
+            if (module_last_update)
+                footer_lines += strchr(module_last_update, '\n') ? 2 : 1;
 
-            int yr = 480 - (num_extra_strings + lines_for_update_msg) * font_med.height;
+            int yr = 480 - footer_lines * font_med.height;
+            module_draw_wrapped_text(FONT_MED, 10, 60, 690, yr - 5, desc);
 
             for (strings = module_list[mod_number].strings ; strings->name != NULL; strings++)
             {
                 if (!module_is_special_string(strings->name))
                 {
-                    bmp_printf(fnt_special, xl, yr, "%s", strings->name);
+                    bmp_printf(fnt_special, xl, yr, "%s", menu_translate(strings->name));
                     bmp_printf(fnt_special, xm, yr, ": %s", strings->value);
                     yr += font_med.height;
                 }
             }
-            
-            if (module_build_date && module_build_user)
-            {
-                bmp_printf(fnt_special, 10, 480-font_med.height, "Built on %s by %s.", module_build_date, module_build_user);
-            }
-            
+
             if (module_last_update)
             {
-                bmp_printf(fnt_special, 10, 480-font_med.height * lines_for_update_msg, "Last update: %s", module_last_update);
+                char update_line[256];
+                menu_snprintf(update_line, sizeof(update_line), "Last update: %s", module_last_update);
+                yr = module_draw_wrapped_text(fnt_special, 10, yr, 690, 480, update_line);
+            }
+
+            if (module_build_date && module_build_user)
+            {
+                char build_line[256];
+                menu_snprintf(build_line, sizeof(build_line), "Built on: %s", module_build_date);
+                bmp_printf(fnt_special, 10, yr, "%s", build_line);
+                yr += font_med.height;
+                menu_snprintf(build_line, sizeof(build_line), "Built by: %s", module_build_user);
+                bmp_printf(fnt_special, 10, yr, "%s", build_line);
             }
             
             return 1;
@@ -1843,7 +1913,7 @@ static MENU_UPDATE_FUNC(module_menu_info_update)
         if (strings)
         {
             y += 10;
-            bmp_printf(FONT_MED, x - 32, y, "Information:");
+            bmp_printf(FONT_MED, x - 32, y, "%s", menu_translate("Information:"));
             y += font_med.height;
             for ( ; strings->name != NULL; strings++)
             {
@@ -1856,14 +1926,16 @@ static MENU_UPDATE_FUNC(module_menu_info_update)
                     continue; /* don't display multiline strings here */
                 }
                 
-                int is_short_string = strlen(strings->value) * font_med.width + x_val < 710;
+                const char *display_label = menu_translate(strings->name);
+                int value_width = bmp_string_width(FONT_MED, strings->value);
+                int is_short_string = value_width + x_val < 710;
                 
                 if (module_is_special_string(strings->name) && !is_short_string)
                 {
                     continue; /* don't display long strings that are already shown on the info page */
                 }
                 
-                bmp_printf(FONT_MED, x, y, "%s", strings->name);
+                bmp_printf(FONT_MED, x, y, "%s", display_label);
                 if (is_short_string)
                 {
                     /* short string */
@@ -1872,14 +1944,14 @@ static MENU_UPDATE_FUNC(module_menu_info_update)
                 else
                 {
                     /* long string */
-                    if ((strlen(strings->name) + strlen(strings->value)) * font_med.width > 710)
+                    if (bmp_string_width(FONT_MED, display_label) + value_width > 710)
                     {
                         /* doesn't fit? print on the next line */
                         y += font_med.height;
                     }
                     
                     /* right-align if possible */
-                    int new_x = MAX(x, 710 - strlen(strings->value) * font_med.width);
+                    int new_x = MAX(x, 710 - value_width);
                     bmp_printf(FONT_MED, new_x, y, "%s", strings->value);
                 }
                 y += font_med.height;
@@ -2263,4 +2335,3 @@ int module_shutdown()
 TASK_CREATE("module_task", module_load_task, 0, 0x1e, 0x4000 );
 
 INIT_FUNC(__FILE__, module_init);
-
