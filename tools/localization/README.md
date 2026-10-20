@@ -33,3 +33,21 @@ validates sizes, offsets, ordering, string termination, UTF-8 and source hashes.
 Translated printf formats must preserve the exact directives and argument order.
 The formatter falls back to the original format for unsupported directives or
 mismatches. `%n`, positional arguments and dynamic width/precision are unsupported.
+
+## Optional ARM execution tests
+
+Install `unicorn==2.1.4` in a test environment, and use ARM none-eabi GCC 12.2.1:
+
+```
+python tools/localization/test_reader_arm.py /path/to/toolchain/bin
+python tools/localization/test_startup_arm.py /path/to/toolchain/bin
+```
+
+These compile the actual C reader/startup/font code and execute ARM instructions.
+The reader tests include guarded input buffers, truncated files, invalid UTF-8,
+FNV collisions, changed printf directives, all catalog entries and mutations.
+Startup tests mock the card I/O and menu registration, not the language reader
+or BFNT validator. They cover English, language selection across restart, an
+optional font, a second language without one, and corrupt/missing resources.
+RBF UTF-8 iteration is tested with fixed glyph widths; this is not pixel or
+real-camera validation. Temporary test builds are outside the source tree.
