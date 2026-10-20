@@ -1,0 +1,476 @@
+[
+  {
+    "hash": "080a4e31",
+    "source": null,
+    "translation": "曝光：响应曝光变化（较大的运动）。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "08113a26",
+    "source": null,
+    "translation": "整体亮度水平的百分比。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "0a5d870f",
+    "source": null,
+    "translation": "静音模式",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "10ce5f30",
+    "source": null,
+    "translation": "自下而上",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "1231906f",
+    "source": null,
+    "translation": "自左向右",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "12aff5e0",
+    "source": null,
+    "translation": "强边缘：检测边缘，弱光下效果最佳。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "143fcaca",
+    "source": null,
+    "translation": "视频模式",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "19e2672e",
+    "source": null,
+    "translation": "中文化：",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "1a3c53bf",
+    "source": null,
+    "translation": "景深远端",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "216988b0",
+    "source": null,
+    "translation": "简单模式：仅考虑失焦模糊，忽略衍射影响。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "23d72406",
+    "source": null,
+    "translation": "录像键或放大键",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "2f4ba415",
+    "source": null,
+    "translation": "拍摄更暗的图像。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "2f742c5d",
+    "source": null,
+    "translation": "布尔值",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "30244b14",
+    "source": null,
+    "translation": "退出魔灯菜单或相机启动时触发。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "356b9df9",
+    "source": null,
+    "translation": "延迟",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "3742e1cc",
+    "source": "Battery remaining. Wait for 2% discharge before reading.",
+    "translation": "显示剩余电量；放电 2% 后读数更准确。",
+    "reason": "Historical translation changes printf directives; requires manual review."
+  },
+  {
+    "hash": "38506e89",
+    "source": null,
+    "translation": "仅影响实时取景预览，不影响录像。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "42595eaa",
+    "source": null,
+    "translation": "强边缘：检测边缘，弱光下效果最佳。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "4a9e5d3e",
+    "source": null,
+    "translation": "狭缝扫描模式",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "4cffa8de",
+    "source": null,
+    "translation": "仅录制",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "527395fc",
+    "source": null,
+    "translation": "14 位：佳能固件使用的原生未压缩格式。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "53223cce",
+    "source": null,
+    "translation": "简单模式：仅考虑失焦模糊，忽略衍射影响。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "597e3898",
+    "source": null,
+    "translation": "选择狭缝扫描方式：",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "5a56d96b",
+    "source": null,
+    "translation": "禁用（照常按录像键）。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "5c2b3699",
+    "source": null,
+    "translation": "固定",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "5d6c4784",
+    "source": null,
+    "translation": "无损 DNG",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "5d890aff",
+    "source": null,
+    "translation": "自右向左",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "60d59513",
+    "source": null,
+    "translation": "半按快门按下",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "631d6c00",
+    "source": null,
+    "translation": "在实时取景中拍照，不驱动机械快门。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "688a0fc3",
+    "source": null,
+    "translation": "禁用（照常按录像键）。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "69862afc",
+    "source": null,
+    "translation": "请勿在重要拍摄任务中直接使用。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "6bf39489",
+    "source": null,
+    "translation": "水平",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "6d5e3f0e",
+    "source": null,
+    "translation": "始终开启：使用佳能原生模式，需要按两次快门。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "736939a5",
+    "source": null,
+    "translation": "选择静音照片模式：",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "80fb2d5b",
+    "source": null,
+    "translation": "垂直",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "8334f221",
+    "source": null,
+    "translation": "半按快门松开",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "83a2f5f6",
+    "source": null,
+    "translation": "照片模式",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "83b900e3",
+    "source": "0.001% px",
+    "translation": "0.001% 像素",
+    "reason": "Historical translation changes printf directives; requires manual review."
+  },
+  {
+    "hash": "8614a9ee",
+    "source": null,
+    "translation": "启用",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "8a66fbaa",
+    "source": null,
+    "translation": "条纹",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "8abb59a4",
+    "source": null,
+    "translation": "选择图像保存格式：",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "8bca57d0",
+    "source": null,
+    "translation": "开机时按住 SET 则不加载魔灯（默认）。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "8c88504b",
+    "source": "0.1% px",
+    "translation": "0.1% 像素",
+    "reason": "Historical translation changes printf directives; requires manual review."
+  },
+  {
+    "hash": "90deb33a",
+    "source": "Stop underexposing when at least 5% of the image gets",
+    "translation": "当至少 5% 的画面达到以下条件时停止降低曝光：",
+    "reason": "Historical translation changes printf directives; requires manual review."
+  },
+  {
+    "hash": "91ef10f8",
+    "source": null,
+    "translation": "自上而下",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "93135ccd",
+    "source": null,
+    "translation": "拍摄更暗的图像。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "9357e570",
+    "source": null,
+    "translation": "始终开启：使用佳能原生模式，需要按两次快门。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "96500535",
+    "source": "0.01% px",
+    "translation": "0.01% 像素",
+    "reason": "Historical translation changes printf directives; requires manual review."
+  },
+  {
+    "hash": "9c08d501",
+    "source": "1% px",
+    "translation": "1% 像素",
+    "reason": "Historical translation changes printf directives; requires manual review."
+  },
+  {
+    "hash": "9d1c93a9",
+    "source": null,
+    "translation": "始终开启：拍照时调整，或在实时取景中持续调整。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "9d8cd435",
+    "source": null,
+    "translation": "不可用",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "a5130c15",
+    "source": null,
+    "translation": "包围曝光：M 档改变快门，其他模式改变曝光补偿。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "b70c1321",
+    "source": null,
+    "translation": "公制",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "bd074002",
+    "source": null,
+    "translation": "阻止",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "c1d0baf6",
+    "source": null,
+    "translation": "文件格式",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "c1f51242",
+    "source": null,
+    "translation": "14 位：佳能固件使用的原生未压缩格式。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "c8154bd7",
+    "source": null,
+    "translation": "自动：魔灯为每种视频模式选择最佳方式。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "ce0a1647",
+    "source": null,
+    "translation": "仅预览",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "d4e8f09c",
+    "source": null,
+    "translation": "英制",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "d6866ce7",
+    "source": null,
+    "translation": "自动：魔灯为每种视频模式选择最佳方式。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "db46893d",
+    "source": null,
+    "translation": "构建日期：",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "dbb6ba36",
+    "source": null,
+    "translation": "Magic Lantern 版本：",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "df1e9344",
+    "source": null,
+    "translation": "整体亮度水平的百分比。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "e2835ba2",
+    "source": null,
+    "translation": "超焦距",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "e33926e1",
+    "source": null,
+    "translation": "曝光：响应曝光变化（较大的运动）。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "e57a8ce6",
+    "source": null,
+    "translation": "源代码提交：",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "e722403a",
+    "source": null,
+    "translation": "退出魔灯菜单或相机启动时触发。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "e8abe04f",
+    "source": null,
+    "translation": "主体合焦时拍照，仅手动对焦可用。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "e9884c2e",
+    "source": null,
+    "translation": "开机时按住 SET 则不加载魔灯（默认）。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "ec2556b6",
+    "source": null,
+    "translation": "连拍，结束触发",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "ed78d04c",
+    "source": null,
+    "translation": "景深近端",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "ef5ff39a",
+    "source": null,
+    "translation": "对焦点已保存到此处。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "f21bc551",
+    "source": null,
+    "translation": "以 MLV 格式录制带元数据的 14 位 RAW 视频。可加载 mlv_snd 录制声音，并加载 mlv_play 在相机中查看片段。",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "f6fa86d5",
+    "source": null,
+    "translation": "选择图像捕获时机：",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "f6fc6999",
+    "source": null,
+    "translation": "始终开启：拍照时调整，或在实时取景中持续调整。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "f755f678",
+    "source": null,
+    "translation": "未激活",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "fbfc14cd",
+    "source": null,
+    "translation": "包围曝光：M 档改变快门，其他模式改变曝光补偿。\n",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "fc0e7776",
+    "source": null,
+    "translation": "触发模式",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  },
+  {
+    "hash": "ff8cceb3",
+    "source": null,
+    "translation": "最佳对焦",
+    "reason": "Original source string not recovered; keep English rather than guess the key."
+  }
+]
