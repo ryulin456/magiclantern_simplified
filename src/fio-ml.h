@@ -181,6 +181,17 @@ size_t read_file( const char * filename, void * buf, size_t size);
 
 uint8_t* read_entire_file(const char * filename, int* buf_size);
 
+/** Read a file into long-lived, cacheable memory.
+ *
+ * read_entire_file() uses fio_malloc(), which is intended for temporary DMA
+ * buffers and may select shoot_malloc.  Buffers returned by that helper must
+ * therefore not be retained while the Canon UI is running.  Use this variant
+ * for persistent resources such as language dictionaries and fallback fonts.
+ * File I/O is performed through a small temporary DMA buffer which is freed
+ * before this function returns.
+ */
+uint8_t* read_entire_file_persistent(const char * filename, int* buf_size);
+
 const char* get_dcim_dir();
 const char* get_dcim_dir_suffix();
 
