@@ -2720,6 +2720,19 @@ static void print_help_line(int color, int x, int y, char* msg)
     );
 }
 
+/* Default display buffers may truncate an English key before it reaches the
+ * renderer. Recover the full original only when that exact prefix is intact;
+ * custom formatted names/values retain their own translation. */
+static const char *menu_display_text(const char *current, const char *original, int capacity)
+{
+    const char *translated = menu_translate(current);
+    if (translated == current && original && capacity > 1 &&
+        strlen(current) == (unsigned int)capacity - 1 &&
+        strncmp(current, original, capacity - 1) == 0)
+        translated = menu_translate(original);
+    return translated;
+}
+
 static void
 entry_print(
     int x,
@@ -2732,8 +2745,10 @@ entry_print(
 )
 {
     int w0 = w;
-    const char *display_name = menu_translate(info->name);
-    const char *display_value = menu_translate(info->value);
+    const char *display_name = menu_display_text(info->name, entry->name, MENU_MAX_NAME_LEN);
+    const char *original_choice = entry->choices && SELECTED_INDEX(entry) >= 0 &&
+        SELECTED_INDEX(entry) < NUM_CHOICES(entry) ? entry->choices[SELECTED_INDEX(entry)] : 0;
+    const char *display_value = menu_display_text(info->value, original_choice, MENU_MAX_VALUE_LEN);
     const char *display_rinfo = menu_translate(info->rinfo);
     
     int fnt = MENU_FONT;
@@ -3791,7 +3806,27 @@ entry_print_junkie(
     bmp_fill(bg, x+2, y+2, w-4, h-4);
     //~ bmp_draw_rect(bg, x+2, y+2, w-4, h-4);
 
-    char* shorttext = junkie_get_shorttext(info, fnt, maxlen);
+    const char *display_name = menu_display_text(info->name, entry->name, MENU_MAX_NAME_LEN);
+    const char *original_choice = entry->choices && SELECTED_INDEX(entry) >= 0 &&
+        SELECTED_INDEX(entry) < NUM_CHOICES(entry) ? entry->choices[SELECTED_INDEX(entry)] : 0;
+    const char *display_value = menu_display_text(info->value, original_choice, MENU_MAX_VALUE_LEN);
+    const char *shorttext = junkie_get_shorttext(info, fnt, maxlen);
+    char localized_short[128];
+    if (display_name != info->name || display_value != info->value)
+    {
+        /* The legacy abbreviation loop operates on bytes and English prefixes.
+         * Clip localized labels by complete UTF-8 glyphs instead. */
+        int show_name = streq(info->value, "ON") || streq(info->value, "Default") ||
+            startswith(info->value, "OFF") || streq(info->value, "Normal") ||
+            (!info->value[0] && !info->short_value[0]);
+        const char *text = show_name ? display_name : display_value[0] ?
+            display_value : menu_translate(info->short_value);
+        int bytes = MIN(bmp_strlen_clipped(fnt, text, maxlen), (int)sizeof(localized_short) - 1);
+        while (bytes > 0 && ((uint8_t)text[bytes] & 0xc0) == 0x80) bytes--;
+        memcpy(localized_short, text, bytes);
+        localized_short[bytes] = 0;
+        shorttext = localized_short;
+    }
     
     bmp_printf(
         fnt,

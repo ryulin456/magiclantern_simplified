@@ -1740,6 +1740,16 @@ static int module_is_special_string(const char* name)
     return 0;
 }
 
+/* Translate UI prose only. Credits, version strings, licenses and URLs remain
+ * exact metadata; the information view must use the same text as About. */
+static const char *module_display_string_value(const char *name, const char *value)
+{
+    if (streq(name, "Name") || streq(name, "Summary") ||
+        streq(name, "Description") || startswith(name, "Help page"))
+        return menu_translate(value);
+    return value;
+}
+
 /* Draw complete UTF-8 glyphs only; bmp_strlen_clipped returns a byte count. */
 static int module_draw_wrapped_text(
     int fontspec,
@@ -1927,7 +1937,8 @@ static MENU_UPDATE_FUNC(module_menu_info_update)
                 }
                 
                 const char *display_label = menu_translate(strings->name);
-                int value_width = bmp_string_width(FONT_MED, strings->value);
+                const char *display_value = module_display_string_value(strings->name, strings->value);
+                int value_width = bmp_string_width(FONT_MED, display_value);
                 int is_short_string = value_width + x_val < 710;
                 
                 if (module_is_special_string(strings->name) && !is_short_string)
@@ -1939,7 +1950,7 @@ static MENU_UPDATE_FUNC(module_menu_info_update)
                 if (is_short_string)
                 {
                     /* short string */
-                    bmp_printf(FONT_MED, x_val, y, "%s", strings->value);
+                    bmp_printf(FONT_MED, x_val, y, "%s", display_value);
                 }
                 else
                 {
@@ -1952,7 +1963,7 @@ static MENU_UPDATE_FUNC(module_menu_info_update)
                     
                     /* right-align if possible */
                     int new_x = MAX(x, 710 - value_width);
-                    bmp_printf(FONT_MED, new_x, y, "%s", strings->value);
+                    bmp_printf(FONT_MED, new_x, y, "%s", display_value);
                 }
                 y += font_med.height;
             }
@@ -1961,13 +1972,13 @@ static MENU_UPDATE_FUNC(module_menu_info_update)
         if (props && *props)
         {
             y += 10;
-            bmp_printf(FONT_MED, x - 32, y, 
+            bmp_printf(FONT_MED, x - 32, y, "%s", menu_translate(
                 #if defined(CONFIG_UNREGISTER_PROP)
                 "Properties:"
                 #else
                 "Properties (no support):"
                 #endif
-            );
+            ));
             y += font_med.height;
             for (; *props != NULL; props++)
             {
@@ -1979,7 +1990,7 @@ static MENU_UPDATE_FUNC(module_menu_info_update)
         if (cbr)
         {
             y += 10;
-            bmp_printf(FONT_MED, x - 32, y, "Callbacks:");
+            bmp_printf(FONT_MED, x - 32, y, "%s", menu_translate("Callbacks:"));
             y += font_med.height;
 
             for ( ; cbr->name != NULL; cbr++)
@@ -1994,7 +2005,7 @@ static MENU_UPDATE_FUNC(module_menu_info_update)
     {
         bmp_printf(FONT_MED, x - 32, y, "%s", module_list[mod_number].long_filename);
         y += font_med.height;
-        bmp_printf(FONT_MED, x - 32, y, "More info after you load this module.");
+        bmp_printf(FONT_MED, x - 32, y, "%s", menu_translate("More info after you load this module."));
     }
 }
 
