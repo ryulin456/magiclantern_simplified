@@ -5,6 +5,10 @@ import sys, re
 import subprocess
 import os
 from datetime import datetime
+import shutil
+
+# Unix pipelines must run under the same shell on Windows hosts.
+BUILD_SHELL = os.environ.get("ML_BUILD_SHELL") or (shutil.which("sh") if os.name == "nt" else None)
 
 from align_string_proportional import word_wrap
 from rbf_read import extent_func, rbf_init_font
@@ -18,7 +22,9 @@ except FileNotFoundError:
 
 def run(cmd):
     try:
-        p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        build_shell = BUILD_SHELL
+        p = subprocess.Popen([build_shell, "-c", cmd] if build_shell else cmd,
+                             shell=not bool(build_shell), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out = p.communicate()
         if p.returncode or out[1]:
             print(cmd, file=sys.stderr)
@@ -61,9 +67,11 @@ def declare_string_section():
     
 def is_command_available(name):
     """Check if command `name` is on PATH."""
-    import distutils.spawn
-    from distutils.spawn import find_executable
-    return find_executable(name) is not None
+    build_shell = BUILD_SHELL
+    if build_shell:
+        return subprocess.call([build_shell, "-c", "command -v " + name],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+    return shutil.which(name) is not None
 
 # return the first command of the list that can be found on the OS
 def get_command_of(commands):
@@ -152,9 +160,14 @@ for p in txt.strip("\n").split("\n")[2:]:
         p = p[2:].strip()
     desc += "%s\n" % p
     lines_per_page += 1
-    if lines_per_page > 18:
-        print("Too many lines per page\n", file=sys.stderr)
-        exit(1)
+    if lines_per_page >= 18:
+        # Docutils versions may wrap paragraphs differently. Preserve every
+        # line by continuing on a new help page instead of aborting the build.
+        add_string(last_str, desc)
+        help_page_num += 1
+        last_str = "Help page %d" % help_page_num
+        desc = ""
+        lines_per_page = 0
 
 add_string(last_str, desc)
 

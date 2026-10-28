@@ -98,20 +98,22 @@ class Module:
             return
 
         mod_name_data = b""
-        with tempfile.NamedTemporaryFile() as dep_file:
-            for d in self.required_mods:
+        with tempfile.TemporaryDirectory(prefix="ml-module-deps-") as temp_dir:
+            dep_path = os.path.join(temp_dir, "deps.bin")
+            for d in sorted(self.required_mods):
                 mod_name_data += d.encode("utf8") + b"\0"
             mod_name_data += b"\0" # 0 length string to mark end of array
-            dep_file.write(mod_name_data)
-            dep_file.flush()
+            with open(dep_path, "wb") as dep_file:
+                dep_file.write(mod_name_data)
             objcopy_invoke = [objcopy,
-                              "--add-section", ".module_deps=" + dep_file.name,
+                              "--remove-section", ".module_deps",
+                              "--add-section", ".module_deps=" + dep_path,
                               self.mo_file]
             # this might fail on Windows, because it is dumb and doesn't like
             # opening the same file twice
             if mod_name_data:
                 print("writing .module_deps section for module: %s" % self.name)
-                subprocess.run(objcopy_invoke)
+                subprocess.run(objcopy_invoke, check=True)
             # objcopy is also kind of dumb.  You can't use add-section if the section
             # already exists, you can't use update-section if it doesn't.
             # You get a rather unhelpful error like this if you run add-section twice:
