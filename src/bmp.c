@@ -1137,22 +1137,24 @@ static int bfnt_ok()
 }
 
 // are all char codes in ascending order, for binary search?
-static uint8_t* bfnt_find_char(int code, int *source_height)
+static uint8_t* bfnt_find_char(int code, bfnt_font *alternate, int *source_height, int *from_alternate)
 {
     *source_height = 40;
+    *from_alternate = 0;
 
-    if (code > 0x7f && BFNT_ALT_FONT && BFNT_ALT_CHAR_CODES &&
-        BFNT_ALT_BITMAP_OFFSET && BFNT_ALT_BITMAP_DATA)
+    if (code > 0x7f && alternate)
     {
-        int n = BFNT_ALT_FONT->charmap_size / 4;
-        int *codes = (int *) BFNT_ALT_CHAR_CODES;
-        int *off = (int *) BFNT_ALT_BITMAP_OFFSET;
+        int n = alternate->charmap_size / 4;
+        int *codes = (int *) ((uint8_t *)alternate + alternate->charmap_offset);
+        int *off = codes + n;
+        uint8_t *bitmaps = (uint8_t *)(off + n);
         for (int i = 0; i < n; i++)
         {
             if (codes[i] == code)
             {
-                *source_height = BFNT_ALT_FONT->font_width;
-                return BFNT_ALT_BITMAP_DATA + off[i];
+                *source_height = alternate->font_width;
+                *from_alternate = 1;
+                return bitmaps + off[i];
             }
         }
     }
@@ -1194,6 +1196,7 @@ static int bfnt_scale_metric(int value, int target_height, int source_height)
 
 int bfnt_draw_char_scaled(int c, int px, int py, int fg, int bg, int target_height)
 {
+    bfnt_font *alternate = BFNT_ALT_FONT;
     // It seems to me that c is used in three different ways.
     //
     // If a small positive integer, bfnt_find_char() uses
@@ -1214,7 +1217,7 @@ int bfnt_draw_char_scaled(int c, int px, int py, int fg, int bg, int target_heig
     // perhaps a different top-level function for drawing ML icons?
 
     // if c < 0 we can always proceed as these are built-in via ico.c
-    if (c >= 0 && !(c > 0x7f && BFNT_ALT_FONT) && !bfnt_ok())
+    if (c >= 0 && !(c > 0x7f && alternate) && !bfnt_ok())
     {
         #ifndef PYCPARSER   /* circular dependency */
         bmp_printf(FONT_SMALL, 0, 0, "font addr bad");
@@ -1229,8 +1232,8 @@ int bfnt_draw_char_scaled(int c, int px, int py, int fg, int bg, int target_heig
 
     uint8_t * const bvram = bmp_vram();
 
-    int source_height;
-    uint8_t* chardata = bfnt_find_char(c, &source_height);
+    int source_height, from_alternate;
+    uint8_t* chardata = bfnt_find_char(c, alternate, &source_height, &from_alternate);
     if (!chardata) return 0;
     uint8_t* buff = chardata + 10;
 
@@ -1267,7 +1270,7 @@ int bfnt_draw_char_scaled(int c, int px, int py, int fg, int bg, int target_heig
     /* When shrinking the monochrome CJK font, visit every source pixel and
      * map it to the destination.  This is both smaller than area sampling and
      * guarantees that a one-pixel source stroke cannot disappear. */
-    int shrink_alternate = c > 0x7f && BFNT_ALT_FONT &&
+    int shrink_alternate = from_alternate &&
                      (scaled_cw < cw || scaled_ch < ch);
     int loop_w = shrink_alternate ? cw : scaled_cw;
     int loop_h = shrink_alternate ? ch : scaled_ch;
@@ -1300,7 +1303,8 @@ int bfnt_draw_char(int c, int px, int py, int fg, int bg)
 
 int bfnt_char_get_width_scaled(int c, int target_height)
 {
-    if (!(c > 0x7f && BFNT_ALT_FONT) && !bfnt_ok())
+    bfnt_font *alternate = BFNT_ALT_FONT;
+    if (!(c > 0x7f && alternate) && !bfnt_ok())
     {
         #ifdef FEATURE_VRAM_RGBA
             /**
@@ -1325,8 +1329,8 @@ int bfnt_char_get_width_scaled(int c, int target_height)
     if(c >= 'a' && c <= 'z') { c += 1; }
 #endif
 
-    int source_height;
-    uint8_t* chardata = bfnt_find_char(c, &source_height);
+    int source_height, from_alternate;
+    uint8_t* chardata = bfnt_find_char(c, alternate, &source_height, &from_alternate);
     if (!chardata) return 0;
     int crw = (chardata[4] | chardata[5] << 8); // the displayed character width
     return bfnt_scale_metric(crw, target_height, source_height);

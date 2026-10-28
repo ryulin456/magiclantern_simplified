@@ -3,6 +3,7 @@
 #include "bmp.h"
 #include "beep.h"
 #include "rbf_font.h"
+#include "resource_barrier.h"
 
 extern uint32_t ml_refresh_display_needed;
 
@@ -27,10 +28,7 @@ struct font font_dynamic[MAX_DYN_FONTS+1];
 static char *dyn_font_name[MAX_DYN_FONTS+1];
 uint32_t dyn_fonts = 0;
 
-bfnt_font *BFNT_ALT_FONT = 0;
-uint8_t *BFNT_ALT_CHAR_CODES = 0;
-uint8_t *BFNT_ALT_BITMAP_OFFSET = 0;
-uint8_t *BFNT_ALT_BITMAP_DATA = 0;
+bfnt_font * volatile BFNT_ALT_FONT = 0;
 
 #ifdef CONFIG_NO_BFNT
 /* kitor: Those replace entries in platform consts.h for DIGIC6+
@@ -716,9 +714,17 @@ struct font font_large;
 struct font font_canon;
 
 
-int bfnt_load_alternate(const char *filename)
+void bfnt_activate_alternate(bfnt_font *prepared)
 {
-    if (BFNT_ALT_FONT) return 5; /* immutable after activation */
+    /* Publish a single pointer, after all file data has been initialized.
+     * Renderers derive all three tables from one snapshot of that pointer. */
+    resource_publish_barrier();
+    BFNT_ALT_FONT = prepared;
+}
+
+int bfnt_prepare_alternate(const char *filename, bfnt_font **prepared)
+{
+    *prepared = 0;
     uint32_t size;
 
     if (FIO_GetFileSize(filename, &size) != 0 || size < sizeof(bfnt_font) || size > 2 * 1024 * 1024)
@@ -726,53 +732,49 @@ int bfnt_load_alternate(const char *filename)
 
     /* This font remains resident.  Keep it out of the temporary/DMA pools
      * used by Canon shooting and menu tasks. */
-    BFNT_ALT_FONT = (bfnt_font *) read_entire_file_persistent(filename, (int *) &size);
-    if (!BFNT_ALT_FONT)
+    bfnt_font *font = (bfnt_font *) read_entire_file_persistent(filename, (int *) &size);
+    if (!font)
         return 2;
 
-    if (size > 2 * 1024 * 1024 ||
-        BFNT_ALT_FONT->magic != 0x00544e46 ||
-        !BFNT_ALT_FONT->font_width || BFNT_ALT_FONT->font_width > 50 ||
-        (BFNT_ALT_FONT->charmap_offset & 3) ||
-        BFNT_ALT_FONT->charmap_offset < sizeof(bfnt_font) ||
-        (BFNT_ALT_FONT->charmap_size & 3) ||
-        BFNT_ALT_FONT->charmap_offset > size ||
-        BFNT_ALT_FONT->charmap_size > size - BFNT_ALT_FONT->charmap_offset ||
-        BFNT_ALT_FONT->charmap_size > size - BFNT_ALT_FONT->charmap_offset - BFNT_ALT_FONT->charmap_size ||
-        BFNT_ALT_FONT->bitmap_size > size - BFNT_ALT_FONT->charmap_offset - 2 * BFNT_ALT_FONT->charmap_size)
+    if (size < sizeof(bfnt_font) || size > 2 * 1024 * 1024 ||
+        font->magic != 0x00544e46 ||
+        !font->font_width || font->font_width > 50 ||
+        (font->charmap_offset & 3) ||
+        font->charmap_offset < sizeof(bfnt_font) ||
+        (font->charmap_size & 3) ||
+        font->charmap_offset > size ||
+        font->charmap_size > size - font->charmap_offset ||
+        font->charmap_size > size - font->charmap_offset - font->charmap_size ||
+        font->bitmap_size > size - font->charmap_offset - 2 * font->charmap_size)
     {
-        free(BFNT_ALT_FONT);
-        BFNT_ALT_FONT = 0;
+        free(font);
         return 3;
     }
 
     /* The renderer reads five little-endian uint16 metrics per glyph.
      * Validate every record, not just the outer font header. */
-    uint8_t *codes = (uint8_t *)BFNT_ALT_FONT + BFNT_ALT_FONT->charmap_offset;
-    uint32_t *offsets = (uint32_t *)(codes + BFNT_ALT_FONT->charmap_size);
-    uint8_t *bitmaps = (uint8_t *)offsets + BFNT_ALT_FONT->charmap_size;
-    for (uint32_t i = 0; i < BFNT_ALT_FONT->charmap_size / 4; i++)
+    uint8_t *codes = (uint8_t *)font + font->charmap_offset;
+    uint32_t *offsets = (uint32_t *)(codes + font->charmap_size);
+    uint8_t *bitmaps = (uint8_t *)offsets + font->charmap_size;
+    for (uint32_t i = 0; i < font->charmap_size / 4; i++)
     {
         uint32_t offset = offsets[i];
-        if (offset > BFNT_ALT_FONT->bitmap_size || BFNT_ALT_FONT->bitmap_size - offset < 10)
+        if (offset > font->bitmap_size || font->bitmap_size - offset < 10)
             goto invalid_glyph;
         const uint8_t *g = bitmaps + offset;
         unsigned cw = g[0] | g[1] << 8, ch = g[2] | g[3] << 8;
         unsigned crw = g[4] | g[5] << 8, xo = g[6] | g[7] << 8, yo = g[8] | g[9] << 8;
         if (cw > 100 || crw > 100 || xo > 100 || ch > 50 || yo > 50 ||
             crw + xo > 100 || ch + yo > 50 ||
-            ((cw + 7) / 8) * ch > BFNT_ALT_FONT->bitmap_size - offset - 10)
+            ((cw + 7) / 8) * ch > font->bitmap_size - offset - 10)
             goto invalid_glyph;
     }
 
-    BFNT_ALT_CHAR_CODES = (uint8_t *) BFNT_ALT_FONT + BFNT_ALT_FONT->charmap_offset;
-    BFNT_ALT_BITMAP_OFFSET = BFNT_ALT_CHAR_CODES + BFNT_ALT_FONT->charmap_size;
-    BFNT_ALT_BITMAP_DATA = BFNT_ALT_BITMAP_OFFSET + BFNT_ALT_FONT->charmap_size;
+    *prepared = font;
     return 0;
 
 invalid_glyph:
-    free(BFNT_ALT_FONT);
-    BFNT_ALT_FONT = 0;
+    free(font);
     return 4;
 }
 
