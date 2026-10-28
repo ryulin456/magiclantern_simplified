@@ -10,7 +10,7 @@ MAGIC = b'MLLG'
 VERSION = 2
 MAX_ENTRIES = 8192
 MAX_SIZE = 1024 * 1024
-ID_RE = re.compile(r'[a-z][a-z0-9_]{0,14}\Z')
+ID_RE = re.compile(r'[a-z][a-z0-9_]{0,7}\Z')  # portable 8.3 resource filenames
 DIRECTIVE = re.compile(r'%[-+ #0]*[0-9]*(?:\.[0-9]*)?(?:hh|ll|[hljztL])?[diouxXfFeEgGaAcsp%]')
 
 
@@ -59,7 +59,12 @@ def load_catalog(path):
         if not source or source in seen:
             raise ValueError('empty or duplicate source message: ' + repr(source))
         seen.add(source)
-        if '%' in source:
+        if 'format' in row and not isinstance(row['format'], bool):
+            raise ValueError('format must be a boolean')
+        # Plain help text may contain e.g. "2% discharge", which resembles
+        # a printf %d with a space flag. The runtime formatter still verifies
+        # argument compatibility independently before calling vsnprintf.
+        if '%' in source and row.get('format', True):
             try:
                 original = format_tokens(source)
             except ValueError:

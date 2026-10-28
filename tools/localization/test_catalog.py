@@ -40,6 +40,17 @@ class CatalogTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.load([], language='../bad')
 
+    def test_portable_resource_filenames(self):
+        self.load([], language='abcdefgh', font='lat_ext')
+        for options in ({'language': 'abcdefghi'}, {'font': 'latin_ext'}):
+            with self.assertRaises(ValueError):
+                self.load([], **options)
+
+    def test_literal_percentage_help(self):
+        self.load([dict(source='Wait for 2% discharge.', translation='等待放电 2%。', format=False)])
+        with self.assertRaises(ValueError):
+            self.load([dict(source='ISO %d', translation='ISO %s', format='false')])
+
 
 if __name__ == '__main__':
     unittest.main()
