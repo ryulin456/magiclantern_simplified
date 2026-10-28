@@ -15,14 +15,25 @@ from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_R
 shim=OUT/'io-shim.c'
 shim.write_text('''#include <stdint.h>
 #include "rbf_font.h"
+#include "menu.h"
+#include "language.h"
 int FIO_GetFileSize(const char *p,uint32_t *s){return 0;}
 uint8_t *read_entire_file_persistent(const char *p,int *s){return 0;}
 void __mem_free(void *p){}
 int snprintf(char *p,unsigned n,const char *fmt,...){return 0;}
 int menu_snprintf(char *p,int n,const char *fmt,...){return 0;}
+const char *menu_translate(const char *s){return language_translate(s);}
 unsigned strlen(const char *p){return 0;}
 char *strchr(const char *p,int c){return 0;}
-void menu_add(const char *name,void *entries,int count){}
+static struct menu_entry *saved_entry;
+void menu_add(const char *name,struct menu_entry *entries,int count){saved_entry=entries;}
+int test_selector_is_action(void){return saved_entry && saved_entry->icon_type==IT_ACTION;}
+void *create_named_semaphore(const char *name,int state){return (void *)1;}
+int take_semaphore(void *sem,int timeout){return 0;}
+void give_semaphore(void *sem){}
+void menu_redraw(void){}
+int strcmp(const char *a,const char *b){while(*a && *a==*b){a++;b++;}return (unsigned char)*a-(unsigned char)*b;}
+int streq(const char *a,const char *b){return strcmp(a,b)==0;}
 void *memset(void *p,int value,unsigned size){unsigned char *q=p;while(size--)*q++=value;return p;}
 int bfnt_char_get_width_scaled(int c,int height){return 1;}
 int test_text_width(const char *s){
@@ -39,7 +50,7 @@ for source in [V/'src/language.c',V/'src/language_file.c',V/'src/rbf_font.c',shi
     p=subprocess.run([str(ARM/('arm-none-eabi-gcc'+TOOL_SUFFIX)),*flags,'-c',str(source),'-o',str(obj)],capture_output=True)
     if p.returncode:raise RuntimeError(p.stderr.decode(errors='replace'))
 elf=OUT/'startup.elf';raw=OUT/'startup.bin'
-subprocess.run([str(ARM/('arm-none-eabi-gcc'+TOOL_SUFFIX)),'-march=armv5te','-marm','-nostdlib','-Wl,--gc-sections','-Wl,-Ttext=0x10000','-Wl,-Tdata=0x20000','-Wl,-e,language_init','-Wl,-u,language_translate','-Wl,-u,test_text_width',*map(str,objects),'-lgcc','-o',str(elf)],check=True)
+subprocess.run([str(ARM/('arm-none-eabi-gcc'+TOOL_SUFFIX)),'-march=armv5te','-marm','-nostdlib','-Wl,--gc-sections','-Wl,-Ttext=0x10000','-Wl,-Tdata=0x20000','-Wl,-e,language_init','-Wl,-u,language_translate','-Wl,-u,language_select','-Wl,-u,test_text_width','-Wl,-u,test_selector_is_action',*map(str,objects),'-lgcc','-o',str(elf)],check=True)
 subprocess.run([str(ARM/('arm-none-eabi-objcopy'+TOOL_SUFFIX)),'-O','binary',str(elf),str(raw)],check=True)
 syms={s[2]:int(s[0],16) for line in subprocess.check_output([str(ARM/('arm-none-eabi-nm'+TOOL_SUFFIX)),str(elf)],text=True).splitlines() if len(s:=line.split())==3}
 STOP=0xf0000
@@ -48,11 +59,12 @@ def check(value,message):
 class Machine:
     def __init__(self,files,selected=0):
         self.files=files;self.reads=[];self.freed=[];self.next=0x400000
+        self.allocations={};self.fail_reads=set();self.sem_busy=False;self.redraws=0
         self.uc=uc=Uc(UC_ARCH_ARM,UC_MODE_ARM)
         uc.mem_map(0x10000,0x100000);uc.mem_write(0x10000,raw.read_bytes())
         uc.mem_map(0x400000,0x800000);uc.mem_map(0x2000000,0x10000)
         self.u32write(syms['selected_language'],selected)
-        hooks={syms[name]:name for name in ['FIO_GetFileSize','read_entire_file_persistent','__mem_free','snprintf','menu_snprintf','strlen','strchr','menu_add']}
+        hooks={syms[name]:name for name in ['FIO_GetFileSize','read_entire_file_persistent','__mem_free','snprintf','menu_snprintf','strlen','strchr','create_named_semaphore','take_semaphore','give_semaphore','menu_redraw']}
         def intercept(uc,address,size,user):
             if address not in hooks:return
             name=hooks[address];args=[uc.reg_read(r) for r in [UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3]]
@@ -62,9 +74,18 @@ class Machine:
                 if path in self.files:self.u32write(args[1],len(self.files[path]))
             elif name=='read_entire_file_persistent':
                 path=self.string(args[0]);self.reads.append(path)
-                data=self.files[path]+b'\0';result=self.next;self.next+=(len(data)+4095)&~4095
-                uc.mem_write(result,data);self.u32write(args[1],len(data)-1)
-            elif name=='__mem_free':self.freed.append(args[0])
+                self.u32write(args[1],0)
+                if path not in self.fail_reads:
+                    data=self.files[path]+b'\0';result=self.next;self.next+=(len(data)+4095)&~4095
+                    uc.mem_write(result,data);self.u32write(args[1],len(data)-1);self.allocations[result]=len(data)
+            elif name=='__mem_free':
+                self.freed.append(args[0]);uc.mem_write(args[0],b'\xdd'*self.allocations[args[0]])
+            elif name=='create_named_semaphore':result=1
+            elif name=='take_semaphore':
+                result=int(self.sem_busy)
+                if not result:self.sem_busy=True
+            elif name=='give_semaphore':self.sem_busy=False
+            elif name=='menu_redraw':self.redraws+=1
             elif name in ('snprintf','menu_snprintf'):
                 fmt=self.string(args[2]);value=fmt.replace('%s',self.string(args[3])) if '%s' in fmt else fmt
                 encoded=value.encode();result=len(encoded)
@@ -94,8 +115,24 @@ manifest=b'zh_cn\tSimplified Chinese\tzh_cn\nde\tDeutsch\t\n'
 files={'ML/LANG/INDEX.TXT':manifest,'ML/LANG/zh_cn.lng':(V/'data/lang/zh_cn.lng').read_bytes(),'ML/FONTS/zh_cn.bfn':(V/'data/fonts/zh_cn.bfn').read_bytes(),'ML/LANG/de.lng':compile_catalog(dict(messages=[dict(source='Language',translation='Sprache')]))}
 english=Machine(files);english.call('language_init');check(english.translate('Language')=='Language','English default')
 check(english.reads==['ML/LANG/INDEX.TXT'],'English does not allocate catalog or font')
-english.call('select_language',0,1);check(english.translate('Language')=='Language','selection deferred until restart')
+check(english.call('test_selector_is_action')==1,'SET invokes the action instead of entering numeric edit mode')
+english.call('select_language',0,1);check(english.translate('Language')=='语言','one-key selection is immediate')
 check(english.u32(syms['selected_language'])==fnv1a('zh_cn')&0x7fffffff,'stable saved language identifier')
+check(english.redraws==1,'redraw after switching')
+reads=len(english.reads);font=english.u32(syms['BFNT_ALT_FONT']);allocated=english.next
+english.uc.mem_write(0x30000,b'Language\0');old_pointer=english.call('language_translate',0x30000)
+for _ in range(100):
+    check(english.call('language_select',0)==1,'switch English')
+    check(english.translate('Language')=='Language','English immediate')
+    check(english.u32(syms['BFNT_ALT_FONT'])==0,'English deactivates optional font')
+    check(english.string(old_pointer)=='语言','old translation pointer remains valid')
+    check(english.call('language_select',fnv1a('zh_cn')&0x7fffffff)==1,'switch Chinese')
+    check(english.translate('Language')=='语言','Chinese immediate')
+check(len(english.reads)==reads and english.next==allocated,'repeated switching does not allocate or re-read resources')
+check(english.u32(syms['BFNT_ALT_FONT'])==font,'font cache reused')
+english.sem_busy=True
+check(english.call('language_select',0)==0 and english.translate('Language')=='语言','concurrent switch rejected without changing resources')
+english.sem_busy=False
 chinese=Machine(files,fnv1a('zh_cn')&0x7fffffff);chinese.call('language_init')
 check(chinese.translate('Language')=='语言','Chinese startup')
 check(chinese.u32(syms['BFNT_ALT_FONT'])!=0,'Chinese font loaded')
@@ -107,6 +144,21 @@ check(german.u32(syms['BFNT_ALT_FONT'])==0,'second language reuses built-in font
 for missing in ('ML/FONTS/zh_cn.bfn','ML/LANG/zh_cn.lng'):
     bad=dict(files);bad.pop(missing);m=Machine(bad,fnv1a('zh_cn')&0x7fffffff);m.call('language_init')
     check(m.translate('Language')=='Language','missing resource fallback '+missing)
+for failed in ('ML/FONTS/zh_cn.bfn','ML/LANG/zh_cn.lng'):
+    m=Machine(files,fnv1a('de')&0x7fffffff);m.call('language_init');m.fail_reads.add(failed)
+    check(m.call('language_select',fnv1a('zh_cn')&0x7fffffff)==0,'simulated allocation/read failure')
+    check(m.translate('Language')=='Sprache' and m.u32(syms['selected_language'])==fnv1a('de')&0x7fffffff,'failed load retains active language and saved choice')
+    check(m.u32(syms['BFNT_ALT_FONT'])==0,'failed font load not published')
+shared=dict(files);shared['ML/LANG/INDEX.TXT']+=b'other\tOther test language\tzh_cn\n'
+shared['ML/LANG/other.lng']=files['ML/LANG/de.lng']
+m=Machine(shared,fnv1a('zh_cn')&0x7fffffff);m.call('language_init');font=m.u32(syms['BFNT_ALT_FONT'])
+check(m.call('language_select',fnv1a('other')&0x7fffffff)==1 and m.u32(syms['BFNT_ALT_FONT'])==font,'languages share a cached font')
+check(m.reads.count('ML/FONTS/zh_cn.bfn')==1,'shared font is not duplicated')
+bad=dict(files);bad['ML/LANG/INDEX.TXT']+=b'bad\tBroken test language\tbroken\n'
+bad['ML/LANG/bad.lng']=files['ML/LANG/de.lng'];bad['ML/FONTS/broken.bfn']=b'broken font'
+m=Machine(bad,fnv1a('zh_cn')&0x7fffffff);m.call('language_init');font=m.u32(syms['BFNT_ALT_FONT'])
+check(m.call('language_select',fnv1a('bad')&0x7fffffff)==0 and m.translate('Language')=='语言','broken new font preserves current Chinese catalog')
+check(m.u32(syms['BFNT_ALT_FONT'])==font,'broken new font preserves current font')
 bad=dict(files);bad['ML/FONTS/zh_cn.bfn']=b'invalid font';m=Machine(bad,fnv1a('zh_cn')&0x7fffffff);m.call('language_init');check(m.translate('Language')=='Language','bad font fallback')
 # A corrupt glyph offset must fail before the renderer can dereference it.
 bad=dict(files);f=bytearray(files['ML/FONTS/zh_cn.bfn']);off,count=struct.unpack_from('<2I',f,8);struct.pack_into('<I',f,off+count,0xffffffff);bad['ML/FONTS/zh_cn.bfn']=bytes(f)
@@ -115,5 +167,5 @@ for index in (b'../bad\tBad\t\n',b'xx\tNon ASCII \xff\t\n',b'x'*2049):
     m=Machine({'ML/LANG/INDEX.TXT':index},1);m.call('language_init');check(m.translate('Language')=='Language','invalid index fallback')
 for text,count in [(b'ABC',3),('中文'.encode(),2),('Menü'.encode(),4),(b'A\xe4',2),(b'\xb0',1),('A😀B'.encode(),3)]:
     chinese.uc.mem_write(0x30000,text+b'\0');check(chinese.call('test_text_width',0x30000)==count,'UTF8/legacy glyph boundary '+repr(text))
-report=dict(result='PASS',execution='Real ARM startup/catalog/font functions with mocked card I/O',cases=['English default','save/restart selection','Chinese with font','second language without font','missing catalog','missing font','malformed font','corrupt glyph offset','invalid index'],hardware_test=False)
+report=dict(result='PASS',execution='Real ARM startup/catalog/font functions with mocked card I/O',cases=['English default','SET is an action','immediate selection','100 repeat round trips without allocations','old pointers remain valid','serialized switching','shared font cache','allocation/read failure rollback','Chinese with font','second language without font','missing catalog','missing font','malformed font','corrupt glyph offset','invalid index'],hardware_test=False)
 (OUT/'startup-results.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))
