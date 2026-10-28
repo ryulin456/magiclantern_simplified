@@ -1,1 +1,3 @@
 zh_cn	Simplified Chinese	zh_cn
+de	Deutsch	lat_ext
+pl	Polski	lat_ext
